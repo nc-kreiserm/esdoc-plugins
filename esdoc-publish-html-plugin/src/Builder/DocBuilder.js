@@ -183,11 +183,11 @@ export default class DocBuilder {
     const ice = new IceCap(html);
 
     const kinds = ['class', 'function', 'variable', 'typedef', 'external'];
-    const allDocs = this._find({kind: kinds}).filter(v => !v.builtinExternal);
-    const kindOrder = {class: 0, interface: 1, function: 2, variable: 3, typedef: 4, external: 5};
+    const allDocs = this._find({ kind: kinds }).filter(v => !v.builtinExternal);
+    const kindOrder = { class: 0, interface: 1, function: 2, variable: 3, typedef: 4, external: 5 };
 
     // see: IdentifiersDocBuilder#_buildIdentifierDoc
-    allDocs.sort((a, b)=>{
+    allDocs.sort((a, b) => {
       const filePathA = a.longname.split('~')[0];
       const filePathB = b.longname.split('~')[0];
       const dirPathA = path.dirname(filePathA);
@@ -204,18 +204,41 @@ export default class DocBuilder {
         return dirPathA > dirPathB ? 1 : -1;
       }
     });
-    let lastDirPath = '.';
-    ice.loop('doc', allDocs, (i, doc, ice)=>{
+
+    let lastParentDirPath = '.'
+    const allDocsAndDirs = [];
+    for (const docIndex in allDocs) {
+      const doc = allDocs[docIndex];
       const filePath = doc.longname.split('~')[0].replace(/^.*?[/]/, '');
       const dirPath = path.dirname(filePath);
-      const kind = doc.interface ? 'interface' : doc.kind;
-      const kindText = kind.charAt(0).toUpperCase();
-      const kindClass = `kind-${kind}`;
-      ice.load('name', this._buildDocLinkHTML(doc.longname));
-      ice.load('kind', kindText);
-      ice.attr('kind', 'class', kindClass);
-      ice.text('dirPath', dirPath);
-      ice.attr('dirPath', 'href', `identifiers.html#${escapeURLHash(dirPath)}`);
+
+      let parentDir = dirPath.substring(0, dirPath.lastIndexOf('/'));
+      while (parentDir && parentDir !== dirPath && lastParentDirPath !== parentDir && allDocsAndDirs.indexOf(parentDir) < 0) {
+        allDocsAndDirs.push(parentDir);
+        parentDir = parentDir.substring(0, parentDir.lastIndexOf('/'))
+      }
+      lastParentDirPath = parentDir
+      allDocsAndDirs.push(doc);
+    }
+
+    let lastDirPath = '.';
+    ice.loop('doc', allDocsAndDirs, (i, doc, ice) => {
+      let dirPath;
+      if (typeof doc === 'string') {
+        dirPath = doc;
+      } else {
+        const filePath = doc.longname.split('~')[0].replace(/^.*?[/]/, '');
+        dirPath = path.dirname(filePath);
+        const kind = doc.interface ? 'interface' : doc.kind;
+        const kindText = kind ? kind.charAt(0).toUpperCase() : null;
+        const kindClass = kind ? `kind-${kind}` : null;
+        ice.load('name', this._buildDocLinkHTML(doc.longname));
+        ice.load('kind', kindText);
+        ice.attr('kind', 'class', kindClass);
+      }
+      ice.load('dirPath', `<span>${path.basename(dirPath)}</span>`);
+      ice.attr('dirPath', 'style', `margin-left: ${(dirPath.split('/').length - 1) * 1.5}em`);
+      ice.attr('dirPath', 'href', `identifiers.html#${(0, escapeURLHash(dirPath))}`);
       ice.drop('dirPath', lastDirPath === dirPath);
       lastDirPath = dirPath;
     });
